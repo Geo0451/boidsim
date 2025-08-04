@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.velocity.limit(MAX_SPEED); // Ensure initial velocity is within limits
             this.acceleration = new Vector(0, 0);
             this.size = 2; // Size of the boid triangle
-            this.color = `hsl(${Math.random() * 360}, 70%, 70%)`; // Random color for each boid
+            this.color = `hsl(${Math.random() * 360}, 70%, 65%)`; // Random color for each boid
         }
 
         // Apply a force to the boid's acceleration
@@ -232,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.position.add(this.velocity);
             this.acceleration.mult(0); // Reset acceleration for next frame
         }
+        
 
         // Handle canvas boundaries (wrap around)
         edges(wrap) {
@@ -324,7 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const rect = canvas.getBoundingClientRect();
         canvas.width = rect.width;
         canvas.height = rect.height;
-
         ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
 
         for (let boid of boids) {
@@ -378,6 +378,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     wrapAround.addEventListener('click', () => {
         wrap = !wrap;
+        if (wrap) {
+            wrapAround.style.backgroundColor = "green";
+        }
+        else wrapAround.style.backgroundColor = "red";
     });
 
     // Reset button

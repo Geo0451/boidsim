@@ -11,6 +11,8 @@ body {
     overflow: hidden; /* Prevent scrollbars */
 }
 
+
+
 .container {
     display: flex;
     flex-direction: column;
@@ -21,11 +23,6 @@ body {
     max-width: 1920px;
 }
 
-h1 {
-    color: #8aff8a;
-    font-size: 2.5em;
-    text-shadow: 0 0 10px rgba(138, 255, 138, 0.6);
-}
 
 canvas {
     background-color: #0a0a14;
@@ -69,7 +66,7 @@ canvas {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #8aff8a;
+    background:green;
     cursor: pointer;
     box-shadow: 0 0 5px rgba(138, 255, 138, 0.8);
     transition: background 0.2s ease-in-out;
