@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Simulation parameters
     let NUM_BOIDS = parseInt(numBoidsSlider.value);
-    let PERCEPTION_RADIUS = 100; // How far a boid "sees" other boids
+    let PERCEPTION_RADIUS = 50; // How far a boid "sees" other boids
     let MAX_FORCE = 0.5; // Max steering force
     let MAX_SPEED = 5;   // Max speed of a boid
 
@@ -24,7 +24,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let ALIGNMENT_WEIGHT = parseFloat(alignmentSlider.value);
     let COHESION_WEIGHT = parseFloat(cohesionSlider.value);
 
+    // Orb parameters
+    const ORB_RADIUS = 10;
+    const ORB_ATTRACT_STRENGTH = 50; // Strength of attraction
+    const ORB_REPULSE_STRENGTH = 50; // Strength of repulsion
+
     let boids = [];
+    let orbs = []; // Array to store attractor/repulsor orbs
     let animationFrameId;
 
     // --- Vector Utility Class ---
@@ -194,6 +200,30 @@ document.addEventListener('DOMContentLoaded', () => {
             this.applyForce(coh);
         }
 
+        // Apply forces from attractors/repulsors
+        applyOrbForces(orbs) {
+            for (let orb of orbs) {
+                let force = new Vector(0, 0);
+                let d = Vector.dist(this.position, orb.position);
+
+                // Apply force if within a certain range and not at the exact center (to avoid division by zero)
+                if (d > 1 && d < PERCEPTION_RADIUS * 3 + orb.radius * 2) {
+                    let diff = orb.position.copy().sub(this.position);
+                    diff.normalize(); // Direction vector
+
+                    let strength;
+                    // Force strength decreases with distance (inverse proportion to distance/radius ratio)
+                    if (orb.type === 'attractor') {
+                        strength = ORB_ATTRACT_STRENGTH / d;
+                    } else {
+                        strength = -ORB_REPULSE_STRENGTH / d; // Negative for repulsion
+                    }
+                    force = diff.mult(strength);
+                    this.applyForce(force.limit(MAX_FORCE));
+                }
+            }
+        }
+
         // Update boid's position and velocity
         update() {
             this.velocity.add(this.acceleration);
@@ -204,17 +234,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Handle canvas boundaries (wrap around)
         edges() {
-            if (this.position.x > canvas.width) {
-                this.position.x = 0;
-            } else if (this.position.x < 0) {
-                this.position.x = canvas.width;
-            }
-            if (this.position.y > canvas.height) {
-                this.position.y = 0;
-            } else if (this.position.y < 0) {
-                this.position.y = canvas.height;
-            }
-        }
+    // Check for horizontal boundaries
+    if (this.position.x > canvas.width) {
+        // Bounce off the right wall and move back inside
+        this.position.x = canvas.width - 1; 
+        this.velocity.x *= -1;
+    } else if (this.position.x < 0) {
+        // Bounce off the left wall and move back inside
+        this.position.x = 1;
+        this.velocity.x *= -1;
+    }
+
+    // Check for vertical boundaries
+    if (this.position.y > canvas.height) {
+        // Bounce off the bottom wall and move back inside
+        this.position.y = canvas.height - 1;
+        this.velocity.y *= -1;
+    } else if (this.position.y < 0) {
+        // Bounce off the top wall and move back inside
+        this.position.y = 1;
+        this.velocity.y *= -1;
+    }
+}
 
         // Draw the boid as a triangle
         draw() {
@@ -244,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initSimulation() {
         cancelAnimationFrame(animationFrameId); // Stop any existing animation
         boids = [];
+        orbs = []; // Clear orbs on reset
         for (let i = 0; i < NUM_BOIDS; i++) {
             boids.push(new Boid());
         }
@@ -262,9 +304,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         for (let boid of boids) {
             boid.flock(boids); // Calculate flocking forces
+            boid.applyOrbForces(orbs); // Apply forces from attractors/repulsors
             boid.update();     // Update position and velocity
             boid.edges();      // Handle boundaries
             boid.draw();       // Draw the boid
+        }
+
+        // Draw orbs
+        for (let orb of orbs) {
+            ctx.beginPath();
+            ctx.arc(orb.position.x, orb.position.y, orb.radius, 0, Math.PI * 2);
+            ctx.fillStyle = orb.color;
+            ctx.fill();
+            ctx.strokeStyle = orb.type === 'attractor' ? 'blue' : 'red';
+            ctx.lineWidth = 2;
+            ctx.stroke();
         }
 
         animationFrameId = requestAnimationFrame(animate); // Loop
@@ -318,6 +372,35 @@ document.addEventListener('DOMContentLoaded', () => {
         COHESION_WEIGHT = 1.0;
 
         initSimulation(); // Re-initialize simulation
+    });
+
+    // --- Mouse Event Listeners for Orbs ---
+    canvas.addEventListener('mousedown', (event) => {
+        // Get mouse coordinates relative to the canvas
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+
+        if (event.button === 0) { // Left click for attractor
+            orbs.push({
+                position: new Vector(mouseX, mouseY),
+                radius: ORB_RADIUS,
+                type: 'attractor',
+                color: 'rgba(0, 100, 255, 0.5)' // Blue with transparency
+            });
+        } else if (event.button === 2) { // Right click for repulsor
+            orbs.push({
+                position: new Vector(mouseX, mouseY),
+                radius: ORB_RADIUS,
+                type: 'repulsor',
+                color: 'rgba(255, 0, 0, 0.5)' // Red with transparency
+            });
+        }
+    });
+
+    // Prevent context menu on right-click
+    canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
     });
 
     // Initial setup
