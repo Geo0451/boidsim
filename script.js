@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Get control elements
     const numBoidsSlider = document.getElementById('numBoids');
     const numBoidsValueSpan = document.getElementById('numBoidsValue');
+    const percepSlider = document.getElementById("percepSlider");
+    const percepValueSpan = document.getElementById("percepValue");
     const separationSlider = document.getElementById('separationSlider');
     const separationValueSpan = document.getElementById('separationValue');
     const alignmentSlider = document.getElementById('alignmentSlider');
@@ -345,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.lineWidth = 2;
             ctx.stroke();
         }
+        
 
         animationFrameId = requestAnimationFrame(animate); // Loop
     }
@@ -376,6 +379,12 @@ document.addEventListener('DOMContentLoaded', () => {
         cohesionValueSpan.textContent = COHESION_WEIGHT.toFixed(1);
     });
 
+    percepSlider.addEventListener('input', () => {
+        PERCEPTION_RADIUS = parseInt(percepSlider.value);
+        percepValueSpan.textContent = PERCEPTION_RADIUS;
+    })
+    
+
     wrapAround.addEventListener('click', () => {
         wrap = !wrap;
         if (wrap) {
@@ -387,22 +396,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reset button
     resetButton.addEventListener('click', () => {
         // Reset sliders to default values
-        numBoidsSlider.value = 100;
+        numBoidsSlider.value = 500;
         separationSlider.value = 1.5;
         alignmentSlider.value = 1.0;
         cohesionSlider.value = 1.0;
+        percepSlider.value = 50;
 
         // Update displayed values
-        numBoidsValueSpan.textContent = 100;
+        numBoidsValueSpan.textContent = 500;
         separationValueSpan.textContent = 1.5;
         alignmentValueSpan.textContent = 1.0;
         cohesionValueSpan.textContent = 1.0;
+        percepValueSpan.textContent = 50;
 
         // Apply reset values to simulation parameters
         NUM_BOIDS = 500;
         SEPARATION_WEIGHT = 1.5;
         ALIGNMENT_WEIGHT = 1.0;
         COHESION_WEIGHT = 1.0;
+        PERCEPTION_RADIUS = 50;
 
         initSimulation(); // Re-initialize simulation
     });
