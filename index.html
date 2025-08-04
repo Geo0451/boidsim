@@ -3,12 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flappy Bird</title>
+    <title>Boid Simulation</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Flappy Bird</h1>
-    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div class="container">
+        <h1>Boid Simulation</h1>
+        <canvas id="boidCanvas"></canvas>
+        <div class="controls">
+            <label for="numBoids">Number of Boids:</label>
+            <input type="range" id="numBoids" min="10" max="300" value="100">
+            <span id="numBoidsValue">100</span>
+
+            <label for="separationSlider">Separation:</label>
+            <input type="range" id="separationSlider" min="0" max="2" step="0.1" value="1.5">
+            <span id="separationValue">1.5</span>
+
+            <label for="alignmentSlider">Alignment:</label>
+            <input type="range" id="alignmentSlider" min="0" max="2" step="0.1" value="1.0">
+            <span id="alignmentValue">1.0</span>
+
+            <label for="cohesionSlider">Cohesion:</label>
+            <input type="range" id="cohesionSlider" min="0" max="2" step="0.1" value="1.0">
+            <span id="cohesionValue">1.0</span>
+
+            <button id="resetButton">Reset Simulation</button>
+        </div>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>

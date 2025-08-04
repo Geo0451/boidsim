@@ -1,287 +1,331 @@
-// ===============================================
-// 1. Setup Canvas and Game Variables
-// ===============================================
+document.addEventListener('DOMContentLoaded', () => {
+    const canvas = document.getElementById('boidCanvas');
+    const ctx = canvas.getContext('2d');
 
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+    // Get control elements
+    const numBoidsSlider = document.getElementById('numBoids');
+    const numBoidsValueSpan = document.getElementById('numBoidsValue');
+    const separationSlider = document.getElementById('separationSlider');
+    const separationValueSpan = document.getElementById('separationValue');
+    const alignmentSlider = document.getElementById('alignmentSlider');
+    const alignmentValueSpan = document.getElementById('alignmentValue');
+    const cohesionSlider = document.getElementById('cohesionSlider');
+    const cohesionValueSpan = document.getElementById('cohesionValue');
+    const resetButton = document.getElementById('resetButton');
 
-let gameOver = false;
-let score = 0;
-let gameStarted = false;
+    // Simulation parameters
+    let NUM_BOIDS = parseInt(numBoidsSlider.value);
+    let PERCEPTION_RADIUS = 100; // How far a boid "sees" other boids
+    let MAX_FORCE = 0.5; // Max steering force
+    let MAX_SPEED = 5;   // Max speed of a boid
 
-// Variables for typing game logic
-let currentTypedWord = ''; // Stores what the user is currently typing
-let activePipeIndex = -1; // Index of the pipe the player needs to type for
+    // Rule weights
+    let SEPARATION_WEIGHT = parseFloat(separationSlider.value);
+    let ALIGNMENT_WEIGHT = parseFloat(alignmentSlider.value);
+    let COHESION_WEIGHT = parseFloat(cohesionSlider.value);
 
-// List of words for the game
-const words = [
-    "apple", "banana", "orange", "grape", "kiwi", "melon", "peach", "plum", "berry", "lemon",
-    "house", "car", "tree", "river", "cloud", "ocean", "mountain", "forest", "desert", "island",
-    "happy", "sad", "brave", "calm", "eager", "funny", "gentle", "humble", "jolly", "kind",
-    "quick", "brown", "fox", "jumps", "over", "lazy", "dog", "the", "cat", "sun"
-];
+    let boids = [];
+    let animationFrameId;
 
-// ===============================================
-// 2. Bird Object
-// ===============================================
+    // --- Vector Utility Class ---
+    // A simple 2D vector class for easier calculations
+    class Vector {
+        constructor(x, y) {
+            this.x = x || 0;
+            this.y = y || 0;
+        }
 
-const bird = {
-    x: 100,
-    y: canvas.height / 2, // Bird's Y position is now controlled by typing
-    width: 30,
-    height: 30,
-    // No gravity or velocity needed for this version
-};
+        add(other) {
+            this.x += other.x;
+            this.y += other.y;
+            return this;
+        }
 
-// ===============================================
-// 3. Pipes Array and Word Assignment
-// ===============================================
+        sub(other) {
+            this.x -= other.x;
+            this.y -= other.y;
+            return this;
+        }
 
-const pipes = [];
-const pipeWidth = 100; // Wider pipes for words
-const pipeGap = 180;   // Gap size for the bird to pass through
-const pipeSpeed = 2;   // Slower speed for typing game
+        mult(scalar) {
+            this.x *= scalar;
+            this.y *= scalar;
+            return this;
+        }
 
-// Function to create a new set of pipes with a word
-function createPipe() {
-    // Random Y position for the top of the gap
-    const minGapY = 50;
-    const maxGapY = canvas.height - pipeGap - 50;
-    const gapY = Math.floor(Math.random() * (maxGapY - minGapY + 1)) + minGapY;
+        div(scalar) {
+            this.x /= scalar;
+            this.y /= scalar;
+            return this;
+        }
 
-    // Select a random word for this pipe set
-    const randomWord = words[Math.floor(Math.random() * words.length)];
+        mag() {
+            return Math.sqrt(this.x * this.x + this.y * this.y);
+        }
 
-    pipes.push({
-        x: canvas.width,
-        gapY: gapY,
-        width: pipeWidth,
-        gapHeight: pipeGap,
-        word: randomWord,
-        passed: false // Flag to check if the bird has successfully passed this pipe
+        normalize() {
+            const m = this.mag();
+            if (m > 0) {
+                this.div(m);
+            }
+            return this;
+        }
+
+        setMag(mag) {
+            return this.normalize().mult(mag);
+        }
+
+        limit(max) {
+            if (this.mag() > max) {
+                this.setMag(max);
+            }
+            return this;
+        }
+
+        copy() {
+            return new Vector(this.x, this.y);
+        }
+
+        static dist(v1, v2) {
+            return Math.sqrt(Math.pow(v1.x - v2.x, 2) + Math.pow(v1.y - v2.y, 2));
+        }
+    }
+
+    // --- Boid Class ---
+    class Boid {
+        constructor() {
+            // Random initial position within canvas bounds
+            this.position = new Vector(Math.random() * canvas.width, Math.random() * canvas.height);
+            // Random initial velocity
+            this.velocity = new Vector(Math.random() * 4 - 2, Math.random() * 4 - 2);
+            this.velocity.limit(MAX_SPEED); // Ensure initial velocity is within limits
+            this.acceleration = new Vector(0, 0);
+            this.size = 5; // Size of the boid triangle
+            this.color = `hsl(${Math.random() * 360}, 70%, 70%)`; // Random color for each boid
+        }
+
+        // Apply a force to the boid's acceleration
+        applyForce(force) {
+            this.acceleration.add(force);
+        }
+
+        // --- Flocking Rules ---
+
+        // 1. Separation: Steer to avoid crowding local flockmates
+        separation(boids) {
+            let steering = new Vector(0, 0);
+            let total = 0;
+            const desiredSeparation = this.size * 6; // Distance to maintain from other boids
+
+            for (let other of boids) {
+                if (other !== this) {
+                    let d = Vector.dist(this.position, other.position);
+                    if (d < desiredSeparation) {
+                        let diff = this.position.copy().sub(other.position);
+                        diff.div(d * d); // Weight by distance squared
+                        steering.add(diff);
+                        total++;
+                    }
+                }
+            }
+            if (total > 0) {
+                steering.div(total);
+                steering.setMag(MAX_SPEED);
+                steering.sub(this.velocity);
+                steering.limit(MAX_FORCE);
+            }
+            return steering;
+        }
+
+        // 2. Alignment: Steer towards the average heading of local flockmates
+        alignment(boids) {
+            let steering = new Vector(0, 0);
+            let total = 0;
+
+            for (let other of boids) {
+                if (other !== this && Vector.dist(this.position, other.position) < PERCEPTION_RADIUS) {
+                    steering.add(other.velocity);
+                    total++;
+                }
+            }
+            if (total > 0) {
+                steering.div(total);
+                steering.setMag(MAX_SPEED);
+                steering.sub(this.velocity);
+                steering.limit(MAX_FORCE);
+            }
+            return steering;
+        }
+
+        // 3. Cohesion: Steer to move towards the average position (center of mass) of local flockmates
+        cohesion(boids) {
+            let steering = new Vector(0, 0);
+            let total = 0;
+
+            for (let other of boids) {
+                if (other !== this && Vector.dist(this.position, other.position) < PERCEPTION_RADIUS) {
+                    steering.add(other.position);
+                    total++;
+                }
+            }
+            if (total > 0) {
+                steering.div(total);
+                steering.sub(this.position); // Vector from current position to center of mass
+                steering.setMag(MAX_SPEED);
+                steering.sub(this.velocity);
+                steering.limit(MAX_FORCE);
+            }
+            return steering;
+        }
+
+        // Apply flocking rules
+        flock(boids) {
+            let sep = this.separation(boids);
+            let ali = this.alignment(boids);
+            let coh = this.cohesion(boids);
+
+            // Apply weights to each rule
+            sep.mult(SEPARATION_WEIGHT);
+            ali.mult(ALIGNMENT_WEIGHT);
+            coh.mult(COHESION_WEIGHT);
+
+            this.applyForce(sep);
+            this.applyForce(ali);
+            this.applyForce(coh);
+        }
+
+        // Update boid's position and velocity
+        update() {
+            this.velocity.add(this.acceleration);
+            this.velocity.limit(MAX_SPEED);
+            this.position.add(this.velocity);
+            this.acceleration.mult(0); // Reset acceleration for next frame
+        }
+
+        // Handle canvas boundaries (wrap around)
+        edges() {
+            if (this.position.x > canvas.width) {
+                this.position.x = 0;
+            } else if (this.position.x < 0) {
+                this.position.x = canvas.width;
+            }
+            if (this.position.y > canvas.height) {
+                this.position.y = 0;
+            } else if (this.position.y < 0) {
+                this.position.y = canvas.height;
+            }
+        }
+
+        // Draw the boid as a triangle
+        draw() {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+
+            // Calculate angle of velocity for rotation
+            const angle = Math.atan2(this.velocity.y, this.velocity.x);
+
+            // Draw a triangle pointing in the direction of velocity
+            ctx.translate(this.position.x, this.position.y);
+            ctx.rotate(angle);
+
+            ctx.moveTo(this.size * 2, 0); // Tip of the triangle
+            ctx.lineTo(-this.size, -this.size); // Bottom left
+            ctx.lineTo(-this.size, this.size);  // Bottom right
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transformation
+        }
+    }
+
+    // --- Simulation Initialization and Loop ---
+
+    // Function to initialize/reset the simulation
+    function initSimulation() {
+        cancelAnimationFrame(animationFrameId); // Stop any existing animation
+        boids = [];
+        for (let i = 0; i < NUM_BOIDS; i++) {
+            boids.push(new Boid());
+        }
+        animate(); // Start the new animation loop
+    }
+
+    // Animation loop
+    function animate() {
+        // Resize canvas to fit its current CSS dimensions
+        // This is crucial for responsiveness and preventing blurriness
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
+
+        for (let boid of boids) {
+            boid.flock(boids); // Calculate flocking forces
+            boid.update();     // Update position and velocity
+            boid.edges();      // Handle boundaries
+            boid.draw();       // Draw the boid
+        }
+
+        animationFrameId = requestAnimationFrame(animate); // Loop
+    }
+
+    // --- Event Listeners for Controls ---
+
+    // Update number of boids
+    numBoidsSlider.addEventListener('input', () => {
+        NUM_BOIDS = parseInt(numBoidsSlider.value);
+        numBoidsValueSpan.textContent = NUM_BOIDS;
+        initSimulation(); // Re-initialize with new number of boids
     });
-}
 
-let pipeSpawnTimer = 0;
-const pipeSpawnInterval = 200; // How often new pipes appear (in frames)
+    // Update separation weight
+    separationSlider.addEventListener('input', () => {
+        SEPARATION_WEIGHT = parseFloat(separationSlider.value);
+        separationValueSpan.textContent = SEPARATION_WEIGHT.toFixed(1);
+    });
 
-// ===============================================
-// 4. Input Handling
-// ===============================================
+    // Update alignment weight
+    alignmentSlider.addEventListener('input', () => {
+        ALIGNMENT_WEIGHT = parseFloat(alignmentSlider.value);
+        alignmentValueSpan.textContent = ALIGNMENT_WEIGHT.toFixed(1);
+    });
 
-document.addEventListener('keydown', e => {
-    // Start the game with Spacebar
-    if (!gameStarted && e.code === 'Space') {
-        startGame();
-        return; // Prevent further processing if just starting
-    }
+    // Update cohesion weight
+    cohesionSlider.addEventListener('input', () => {
+        COHESION_WEIGHT = parseFloat(cohesionSlider.value);
+        cohesionValueSpan.textContent = COHESION_WEIGHT.toFixed(1);
+    });
 
-    if (gameOver) {
-        if (e.code === 'Space') {
-            startGame(); // Restart the game
-        }
-        return; // Do nothing else if game is over
-    }
+    // Reset button
+    resetButton.addEventListener('click', () => {
+        // Reset sliders to default values
+        numBoidsSlider.value = 100;
+        separationSlider.value = 1.5;
+        alignmentSlider.value = 1.0;
+        cohesionSlider.value = 1.0;
 
-    const key = e.key.toLowerCase(); // Get the pressed key
+        // Update displayed values
+        numBoidsValueSpan.textContent = 100;
+        separationValueSpan.textContent = 1.5;
+        alignmentValueSpan.textContent = 1.0;
+        cohesionValueSpan.textContent = 1.0;
 
-    // If the key is a letter, append it to the typed word
-    if (key.length === 1 && key.match(/[a-z]/i)) {
-        currentTypedWord += key;
-    }
-    // Handle backspace to delete the last character
-    else if (e.code === 'Backspace') {
-        currentTypedWord = currentTypedWord.slice(0, -1);
-    }
-    // Handle Spacebar (only for game start/restart now)
-    else if (e.code === 'Space') {
-        // No action for space during active gameplay in this version
-    }
+        // Apply reset values to simulation parameters
+        NUM_BOIDS = 100;
+        SEPARATION_WEIGHT = 1.5;
+        ALIGNMENT_WEIGHT = 1.0;
+        COHESION_WEIGHT = 1.0;
 
-    // Check if the current typed word matches the active pipe's word
-    if (activePipeIndex !== -1 && pipes[activePipeIndex]) {
-        const targetPipe = pipes[activePipeIndex];
-        if (currentTypedWord === targetPipe.word) {
-            // Correct word typed! Move the bird to pass through the gap
-            bird.y = targetPipe.gapY + (targetPipe.gapHeight / 2) - (bird.height / 2);
-            targetPipe.passed = true; // Mark this pipe as passed
-            score++;
-            currentTypedWord = ''; // Reset the typed word for the next pipe
-            activePipeIndex = -1; // No active pipe until the next one comes into view
-        }
-    }
+        initSimulation(); // Re-initialize simulation
+    });
+
+    // Initial setup
+    initSimulation();
+
+    // Handle window resize to adjust canvas dimensions
+    window.addEventListener('resize', () => {
+        // The animate function already handles canvas resizing based on CSS
+        // No explicit resize call needed here, as it's part of every frame.
+    });
 });
-
-// ===============================================
-// 5. Game Loop Functions
-// ===============================================
-
-function update() {
-    if (!gameStarted || gameOver) return;
-
-    // Bird's Y position is only changed by typing, not by physics
-
-    // Pipe generation
-    pipeSpawnTimer++;
-    if (pipeSpawnTimer > pipeSpawnInterval) {
-        createPipe();
-        pipeSpawnTimer = 0;
-    }
-
-    // Move pipes
-    pipes.forEach(pipe => {
-        pipe.x -= pipeSpeed;
-    });
-
-    // Assign the next pipe to be typed
-    // This logic ensures 'activePipeIndex' points to the first unpassed pipe
-    if (activePipeIndex === -1 && pipes.length > 0) {
-        // Find the first pipe that is approaching the bird and hasn't been passed
-        const nextPipeToType = pipes.findIndex(p => p.x + p.width > bird.x && !p.passed);
-        if (nextPipeToType !== -1) {
-            activePipeIndex = nextPipeToType;
-        }
-    }
-
-
-    // Remove pipes that are off-screen and check for game over if not passed
-    if (pipes.length > 0 && pipes[0].x + pipes[0].width < 0) {
-        // If the first pipe went off-screen and was NOT passed, it's game over
-        if (!pipes[0].passed) {
-            endGame();
-            return; // Stop updating if game is over
-        }
-        pipes.shift(); // Remove the first pipe from the array
-        // If the removed pipe was the active one, reset activePipeIndex
-        if (activePipeIndex === 0) {
-            activePipeIndex = -1;
-        } else if (activePipeIndex > 0) {
-            activePipeIndex--; // Shift index if pipes before it were removed
-        }
-    }
-
-    // Check for "collision" (failure to type in time)
-    checkCollision();
-}
-
-function draw() {
-    // Clear the canvas for redrawing
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw background
-    ctx.fillStyle = 'skyblue';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw the bird
-    ctx.fillStyle = 'gold';
-    ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
-
-    // Draw the pipes and their words
-    ctx.fillStyle = 'green';
-    pipes.forEach((pipe, index) => {
-        // Draw top part of the pipe
-        ctx.fillRect(pipe.x, 0, pipe.width, pipe.gapY);
-        // Draw bottom part of the pipe
-        ctx.fillRect(pipe.x, pipe.gapY + pipe.gapHeight, pipe.width, canvas.height - (pipe.gapY + pipe.gapHeight));
-
-        // Draw the word on the pipe
-        ctx.font = '20px Arial';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle'; // Center text vertically in the gap
-
-        // Highlight the word if it's the active one to type
-        if (index === activePipeIndex) {
-            // Draw the correctly typed part in one color (e.g., green)
-            ctx.fillStyle = 'lime';
-            const typedPart = pipe.word.substring(0, currentTypedWord.length);
-            const untypedPart = pipe.word.substring(currentTypedWord.length);
-            
-            const typedWidth = ctx.measureText(typedPart).width;
-            const totalWidth = ctx.measureText(pipe.word).width;
-
-            // Position the text to be centered
-            const startX = pipe.x + pipe.width / 2 - totalWidth / 2;
-            
-            ctx.fillText(typedPart, startX + typedWidth / 2, pipe.gapY + pipe.gapHeight / 2);
-
-            // Draw the remaining untyped part in another color (e.g., red)
-            ctx.fillStyle = 'red';
-            ctx.fillText(untypedPart, startX + typedWidth + ctx.measureText(untypedPart).width / 2, pipe.gapY + pipe.gapHeight / 2);
-
-        } else {
-            // Draw regular word for non-active pipes
-            ctx.fillStyle = 'white';
-            ctx.fillText(pipe.word, pipe.x + pipe.width / 2, pipe.gapY + pipe.gapHeight / 2);
-        }
-    });
-
-    // Draw the score
-    ctx.fillStyle = 'white';
-    ctx.font = '24px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText('Score: ' + score, 10, 30);
-
-    // Draw the current typed word
-    ctx.fillText('Typing: ' + currentTypedWord, 10, 60);
-
-
-    // Draw game over screen
-    if (gameOver) {
-        ctx.font = '48px Arial';
-        ctx.fillStyle = 'red';
-        ctx.textAlign = 'center';
-        ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 50);
-        ctx.font = '24px Arial';
-        ctx.fillText('Your Score: ' + score, canvas.width / 2, canvas.height / 2);
-        ctx.fillText('Press Space to Restart', canvas.width / 2, canvas.height / 2 + 50);
-    }
-
-    // Draw start screen
-    if (!gameStarted && !gameOver) {
-        ctx.font = '48px Arial';
-        ctx.fillStyle = 'black';
-        ctx.textAlign = 'center';
-        ctx.fillText('Typing Bird', canvas.width / 2, canvas.height / 2 - 50);
-        ctx.font = '24px Arial';
-        ctx.fillText('Type the words to pass!', canvas.width / 2, canvas.height / 2);
-        ctx.fillText('Press Space to Start', canvas.width / 2, canvas.height / 2 + 50);
-    }
-}
-
-function checkCollision() {
-    // Collision in this game means failing to type the word in time
-    if (activePipeIndex !== -1 && pipes[activePipeIndex]) {
-        const pipe = pipes[activePipeIndex];
-        // If the bird's front edge passes the pipe's back edge AND the pipe wasn't passed
-        if (bird.x > pipe.x + pipe.width && !pipe.passed) {
-            endGame();
-        }
-    }
-}
-
-function endGame() {
-    gameOver = true;
-    gameStarted = false; // Ensure gameStarted is false on game over
-}
-
-function startGame() {
-    gameStarted = true;
-    gameOver = false;
-    score = 0;
-    bird.y = canvas.height / 2; // Reset bird position
-    pipes.length = 0; // Clear all pipes
-    pipeSpawnTimer = 0;
-    currentTypedWord = ''; // Clear typed word
-    activePipeIndex = -1; // Reset active pipe
-    createPipe(); // Create the first pipe immediately
-}
-
-// Main game loop using requestAnimationFrame for smooth animation
-function gameLoop() {
-    update();
-    draw();
-    requestAnimationFrame(gameLoop);
-}
-
-// Start the game loop when the script loads
-gameLoop();

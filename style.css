@@ -5,12 +5,130 @@ body {
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    font-family: sans-serif;
-    background-color: #333;
-    color: #fff;
+    font-family: 'Inter', sans-serif;
+    background-color: #1a1a2e;
+    color: #e0e0e0;
+    overflow: hidden; /* Prevent scrollbars */
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #0f0f1a;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    width: 90%;
+    max-width: 900px;
+    margin: 20px auto;
+}
+
+h1 {
+    color: #8aff8a;
+    margin-bottom: 20px;
+    font-size: 2.5em;
+    text-shadow: 0 0 10px rgba(138, 255, 138, 0.6);
 }
 
 canvas {
-    background-color: skyblue; /* Or a background image */
-    border: 2px solid #fff;
+    background-color: #0a0a14;
+    border: 2px solid #555;
+    border-radius: 10px;
+    width: 100%;
+    height: 60vh; /* Responsive height */
+    max-height: 600px; /* Max height for larger screens */
+    box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.2);
+}
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
+    width: 100%;
+}
+
+.controls label {
+    flex-basis: 100%; /* Full width on small screens */
+    text-align: center;
+    font-weight: bold;
+    color: #a0a0ff;
+}
+
+.controls input[type="range"] {
+    width: calc(100% - 60px); /* Adjust for span width */
+    -webkit-appearance: none;
+    height: 8px;
+    background: #444;
+    outline: none;
+    border-radius: 5px;
+    transition: background 0.2s ease-in-out;
+}
+
+.controls input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8aff8a;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(138, 255, 138, 0.8);
+    transition: background 0.2s ease-in-out;
+}
+
+.controls input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8aff8a;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(138, 255, 138, 0.8);
+    transition: background 0.2s ease-in-out;
+}
+
+.controls span {
+    width: 40px;
+    text-align: center;
+    font-weight: bold;
+    color: #8aff8a;
+}
+
+button {
+    background-color: #4CAF50; /* Green */
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+button:hover {
+    background-color: #45a049;
+    transform: translateY(-2px);
+}
+
+button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive adjustments */
+@media (min-width: 600px) {
+    .controls label {
+        flex-basis: auto; /* Allow labels to take less width */
+        text-align: left;
+    }
+    .controls input[type="range"] {
+        width: 200px; /* Fixed width for sliders on larger screens */
+    }
+    .controls {
+        justify-content: space-around;
+        gap: 20px;
+    }
 }
