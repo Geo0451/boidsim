@@ -12,7 +12,7 @@
         <canvas id="boidCanvas"></canvas>
         <div class="controls">
             <label for="numBoids">Number of Boids:</label>
-            <input type="range" id="numBoids" min="10" max="300" value="100">
+            <input type="range" id="numBoids" min="10" max="1000" value="100">
             <span id="numBoidsValue">100</span>
 
             <label for="separationSlider">Separation:</label>
@@ -28,6 +28,7 @@
             <span id="cohesionValue">1.0</span>
 
             <button id="resetButton">Reset Simulation</button>
+            <button id="toggleWrap">Toggle Wrap Around</button>
         </div>
     </div>
     <script src="script.js"></script>

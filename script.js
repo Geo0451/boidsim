@@ -12,12 +12,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const cohesionSlider = document.getElementById('cohesionSlider');
     const cohesionValueSpan = document.getElementById('cohesionValue');
     const resetButton = document.getElementById('resetButton');
+    const wrapAround = document.getElementById('toggleWrap');
 
     // Simulation parameters
     let NUM_BOIDS = parseInt(numBoidsSlider.value);
     let PERCEPTION_RADIUS = 50; // How far a boid "sees" other boids
     let MAX_FORCE = 0.5; // Max steering force
     let MAX_SPEED = 5;   // Max speed of a boid
+    let wrap = true;
 
     // Rule weights
     let SEPARATION_WEIGHT = parseFloat(separationSlider.value);
@@ -26,8 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Orb parameters
     const ORB_RADIUS = 10;
-    const ORB_ATTRACT_STRENGTH = 50; // Strength of attraction
-    const ORB_REPULSE_STRENGTH = 50; // Strength of repulsion
+    const ORB_STRENGTH = 40; // Strength of orb
 
     let boids = [];
     let orbs = []; // Array to store attractor/repulsor orbs
@@ -106,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.velocity = new Vector(Math.random() * 4 - 2, Math.random() * 4 - 2);
             this.velocity.limit(MAX_SPEED); // Ensure initial velocity is within limits
             this.acceleration = new Vector(0, 0);
-            this.size = 5; // Size of the boid triangle
+            this.size = 2; // Size of the boid triangle
             this.color = `hsl(${Math.random() * 360}, 70%, 70%)`; // Random color for each boid
         }
 
@@ -207,16 +208,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 let d = Vector.dist(this.position, orb.position);
 
                 // Apply force if within a certain range and not at the exact center (to avoid division by zero)
-                if (d > 1 && d < PERCEPTION_RADIUS * 3 + orb.radius * 2) {
+                if (d > 1 && d < PERCEPTION_RADIUS * 2) {
                     let diff = orb.position.copy().sub(this.position);
                     diff.normalize(); // Direction vector
 
                     let strength;
                     // Force strength decreases with distance (inverse proportion to distance/radius ratio)
                     if (orb.type === 'attractor') {
-                        strength = ORB_ATTRACT_STRENGTH / d;
+                        strength = ORB_STRENGTH / d;
                     } else {
-                        strength = -ORB_REPULSE_STRENGTH / d; // Negative for repulsion
+                        strength = -ORB_STRENGTH / d; // Negative for repulsion
                     }
                     force = diff.mult(strength);
                     this.applyForce(force.limit(MAX_FORCE));
@@ -233,29 +234,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Handle canvas boundaries (wrap around)
-        edges() {
-    // Check for horizontal boundaries
-    if (this.position.x > canvas.width) {
-        // Bounce off the right wall and move back inside
-        this.position.x = canvas.width - 1; 
-        this.velocity.x *= -1;
-    } else if (this.position.x < 0) {
-        // Bounce off the left wall and move back inside
-        this.position.x = 1;
-        this.velocity.x *= -1;
-    }
+        edges(wrap) {
+            if (wrap)
+            {
+            if (this.position.x > canvas.width) {
 
-    // Check for vertical boundaries
-    if (this.position.y > canvas.height) {
-        // Bounce off the bottom wall and move back inside
-        this.position.y = canvas.height - 1;
-        this.velocity.y *= -1;
-    } else if (this.position.y < 0) {
-        // Bounce off the top wall and move back inside
-        this.position.y = 1;
-        this.velocity.y *= -1;
-    }
-}
+            this.position.x = 0;
+
+            } else if (this.position.x < 0) {
+
+            this.position.x = canvas.width;
+
+            }
+
+            if (this.position.y > canvas.height) {
+
+            this.position.y = 0;
+
+            } else if (this.position.y < 0) {
+
+            this.position.y = canvas.height;
+
+            } 
+            }
+
+            else {
+            // Check for horizontal boundaries
+            if (this.position.x > canvas.width) {
+                // Bounce off the right wall and move back inside
+                this.position.x = canvas.width - 1; 
+                this.velocity.x *= -1;
+            } else if (this.position.x < 0) {
+                // Bounce off the left wall and move back inside
+                this.position.x = 1;
+                this.velocity.x *= -1;
+            }
+
+            // Check for vertical boundaries
+            if (this.position.y > canvas.height) {
+                // Bounce off the bottom wall and move back inside
+                this.position.y = canvas.height - 1;
+                this.velocity.y *= -1;
+            } else if (this.position.y < 0) {
+                // Bounce off the top wall and move back inside
+                this.position.y = 1;
+                this.velocity.y *= -1;
+            }
+            }} 
 
         // Draw the boid as a triangle
         draw() {
@@ -306,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
             boid.flock(boids); // Calculate flocking forces
             boid.applyOrbForces(orbs); // Apply forces from attractors/repulsors
             boid.update();     // Update position and velocity
-            boid.edges();      // Handle boundaries
+            boid.edges(wrap);      // Handle boundaries
             boid.draw();       // Draw the boid
         }
 
@@ -351,6 +376,10 @@ document.addEventListener('DOMContentLoaded', () => {
         cohesionValueSpan.textContent = COHESION_WEIGHT.toFixed(1);
     });
 
+    wrapAround.addEventListener('click', () => {
+        wrap = !wrap;
+    });
+
     // Reset button
     resetButton.addEventListener('click', () => {
         // Reset sliders to default values
@@ -366,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cohesionValueSpan.textContent = 1.0;
 
         // Apply reset values to simulation parameters
-        NUM_BOIDS = 100;
+        NUM_BOIDS = 500;
         SEPARATION_WEIGHT = 1.5;
         ALIGNMENT_WEIGHT = 1.0;
         COHESION_WEIGHT = 1.0;
@@ -381,14 +410,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const mouseX = event.clientX - rect.left;
         const mouseY = event.clientY - rect.top;
 
-        if (event.button === 0) { // Left click for attractor
+        if (event.button === 2) { // Left click for attractor
             orbs.push({
                 position: new Vector(mouseX, mouseY),
                 radius: ORB_RADIUS,
                 type: 'attractor',
                 color: 'rgba(0, 100, 255, 0.5)' // Blue with transparency
             });
-        } else if (event.button === 2) { // Right click for repulsor
+        } else if (event.button === 0) { // Right click for repulsor
             orbs.push({
                 position: new Vector(mouseX, mouseY),
                 radius: ORB_RADIUS,
